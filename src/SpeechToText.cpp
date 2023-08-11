@@ -44,6 +44,7 @@ void SpeechToText::start()
         std::vector<float> frame{ reinterpret_cast<const float *>(bytes.cbegin()),
                                   reinterpret_cast<const float *>(bytes.cend()) };
         if (_vad.getVoiceInProgress()) setState(State::SpeechDetected);
+        else if (_vad.getAdjustInProgress()) setState(State::Tuning);
         else setState(State::WaitingForSpeech);
 
         _vad.feedSamples(std::move(frame));

@@ -1,21 +1,28 @@
 #include "VoiceActivityDetector.h"
 #include <QDebug>
-VoiceActivityDetector::VoiceActivityDetector(QObject *parent)
-    : QObject{parent}
+VoiceActivityDetector::VoiceActivityDetector(const Params& params, QObject *parent)
+    : QObject{parent}, _params{params}, _patience_counter{params.patience},
+    _detected_samples_counter{params.minimum_samples}, _adjustment_counter{params.adjust_samples}
 {
     qRegisterMetaType<std::vector<float> >();
 }
 
 void VoiceActivityDetector::feedSamples(const std::vector<float> &data)
 {
+    _adjustment_counter = std::max(_adjustment_counter - 1, 0);
+    if (_adjustment_counter > 0) {
+        setAdjustInProgress(true);
+        adjust(data);
+        return;
+    }
+    setAdjustInProgress(false);
+
     auto energy = std::inner_product(data.begin(), data.end(), data.begin(), 0.0f) / data.size();
-
-
-    const bool current_score = energy > _threshold;
+    const bool current_score = energy > threshold();
 
     if (current_score) {
         // reset patience
-        _patience_counter = _patience;
+        _patience_counter = _params.patience;
 
         // start the new potential segment if not already started
         setVoiceInProgress(true);
@@ -29,7 +36,7 @@ void VoiceActivityDetector::feedSamples(const std::vector<float> &data)
         _patience_counter = std::max(_patience_counter - 1, 0);
 
         // reset accepted samples counter
-        _detected_samples_counter = _minimum_detected_samples;
+        _detected_samples_counter = _params.minimum_samples;
     }
 
     // Capture voice if speech is detected
@@ -54,11 +61,27 @@ void VoiceActivityDetector::reset()
     _voice_buffer.clear();
     setVoiceInProgress(false);
     _segment_approved         = false;
-    _patience_counter         = _patience;
-    _detected_samples_counter = _minimum_detected_samples;
+    _patience_counter         = _params.patience;
+    _detected_samples_counter = _params.minimum_samples;
 }
 
 void VoiceActivityDetector::adjust(const std::vector<float> &data)
 {
-    auto var = std::inner_product(data.begin(), data.end(), data.begin(), 0.0f) / data.size();
+    auto energy = std::inner_product(data.begin(), data.end(), data.begin(), 0.0f) / data.size();
+    auto diff   = std::abs(energy - _mean_energy);
+
+    _mean_energy = _mean_energy * _params.beta + (1 - _params.beta) * energy;
+    _std_energy  = _std_energy * _params.beta + (1 - _params.beta) * diff;
+}
+
+float VoiceActivityDetector::threshold() const
+{
+    return _mean_energy + _params.threshold * _std_energy;
+}
+
+VoiceActivityDetector::Params VoiceActivityDetector::defaultParams()
+{
+    return Params{
+        50, 10, 0.5f, 3.0f, 20
+    };
 }
