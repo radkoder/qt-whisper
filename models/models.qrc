@@ -1,5 +1,5 @@
 <RCC>
     <qresource prefix="/">
-        <file>ggml-base-en-q4-0.bin</file>
+        <file>ggml-tiny-en-q4-0.bin</file>
     </qresource>
 </RCC>

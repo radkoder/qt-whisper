@@ -3,7 +3,7 @@
 #include <QAudioDevice>
 #include <QDebug>
 constexpr int SAMPLE_RATE = 16000;
-constexpr const char *MODEL_RESOURCE = ":/ggml-base-en-q4-0.bin";
+constexpr const char *MODEL_RESOURCE = ":/ggml-tiny-en-q4-0.bin";
 SpeechToText::SpeechToText()
 {
     connect(this, &SpeechToText::modelPathChanged, this, &SpeechToText::loadModel);
