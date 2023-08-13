@@ -8,14 +8,14 @@ This project provides ready to use QML object that performes inference away from
 :heavy_check_mark: Threaded inference - Don't block GUI thread while running the model  
 :heavy_check_mark: Voice Activity Detection - Wait for Speech to start capturing audio and Automatically stop audio capture after speech has stopped.  
 :heavy_check_mark: Embedded small model - You can build the library with a small model embedded into the binary for quick prototyping  
-:x: Advanced VAD - Dynamic threshold, ML models.
+:x: Advanced VAD - Dynamic threshold, ML models.  
 :x: Model Quantization  
 :x: Building QML plugin  
 
 ## Usage
 Pull the repo as a submodule using:
 ```
-git submodule add <url>
+git submodule add https://github.com/Ugibugi/qt-whisper.git
 git submodule update --init --recursive
 ```
 Then in your CMakeLists.txt:
