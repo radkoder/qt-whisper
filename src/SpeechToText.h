@@ -16,6 +16,7 @@ class SpeechToText : public QObject
     QML_ELEMENT;
     QML_WRITABLE_PROPERTY(QString, modelPath, ModelPath)
     QML_READONLY_PROPERTY(bool, hasEmbeddedModel, HasEmbeddedModel)
+    Q_PROPERTY(const WhisperInfo * backendInfo READ getBackendInfo NOTIFY backendInfoChanged)
 public:
     SpeechToText();
     Q_INVOKABLE void start();
@@ -34,10 +35,14 @@ public:
     void loadModel(const QString& path);
     void unloadModel();
 
+    const WhisperInfo *getBackendInfo() const;
+
 signals:
     void resultReady(const QString& str);
     void modelUnloaded();
     void modelLoaded();
+
+    void backendInfoChanged();
 
 private:
     QML_READONLY_PROPERTY(State, state, State)

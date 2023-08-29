@@ -11,6 +11,29 @@ ApplicationWindow {
   Material.theme: Material.Dark
 
   ColumnLayout {
+    anchors {
+      right: parent.right
+      top: parent.top
+    }
+    width: 200
+
+    Label {
+      text: "Collected Info:"
+      font.pixelSize: 20
+    }
+    Label {
+      text: stt.backendInfo.floatTypeString()
+      Layout.leftMargin: 10
+      font.pixelSize: 15
+    }
+    Label {
+      text: stt.backendInfo.modelTypeString()
+      Layout.leftMargin: 10
+      font.pixelSize: 15
+    }
+  }
+
+  ColumnLayout {
     anchors.centerIn: parent
     width: parent.width / 2
     height: parent.height / 3

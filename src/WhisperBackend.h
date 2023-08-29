@@ -1,8 +1,31 @@
 #pragma once
 #include <QObject>
 #include "whisper.h"
+#include "ggml.h"
 #include "QmlMacros.h"
-class WhisperResult;
+
+class WhisperInfo : public QObject {
+    Q_OBJECT
+public:
+    /// copied from whisper.cpp
+    enum ModelType {
+        MODEL_UNKNOWN,
+        MODEL_TINY,
+        MODEL_BASE,
+        MODEL_SMALL,
+        MODEL_MEDIUM,
+        MODEL_LARGE,
+    };
+    using FloatType = ggml_ftype;
+    Q_ENUM(ModelType)
+    Q_ENUM(FloatType)
+    Q_INVOKABLE QString floatTypeString() const;
+    Q_INVOKABLE QString modelTypeString() const;
+private:
+    QML_READONLY_PROPERTY(ModelType, modelType, ModelType)
+    QML_READONLY_PROPERTY(FloatType, floatType, FloatType)
+};
+
 class WhisperBackend : public QObject {
     Q_OBJECT
     QML_READONLY_PROPERTY(bool, busy, Busy)
@@ -12,9 +35,13 @@ public:
     WhisperBackend(const QString &filePath, QObject *parent = nullptr);
     ~WhisperBackend();
     Q_INVOKABLE void threadedInference(std::vector<float> samples);
+    const WhisperInfo *info() const;
 signals:
     void resultReady(QString result);
 private:
+    void collectInfo();
+
     whisper_context *_ctx = nullptr;
     whisper_full_params _params;
+    WhisperInfo _info;
 };

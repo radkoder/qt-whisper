@@ -13,6 +13,7 @@ int main(int argc, char *argv[])
     const QUrl url(QStringLiteral("qrc:simple.qml"));
 
     qmlRegisterType<SpeechToText>("qtwhisper", 1, 0, "SpeechToText");
+    qmlRegisterUncreatableType<WhisperInfo>("qtwhisper", 1, 0, "WhisperInfo", "");
 
     // QML startup
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,

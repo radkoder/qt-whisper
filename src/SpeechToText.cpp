@@ -98,3 +98,10 @@ void SpeechToText::unloadModel()
     if (!_whisper.isNull())
         _whisper->deleteLater();
 }
+
+const WhisperInfo *SpeechToText::getBackendInfo() const
+{
+    Q_ASSERT(_whisper);
+
+    return _whisper->info();
+}
