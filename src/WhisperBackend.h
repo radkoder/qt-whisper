@@ -34,12 +34,18 @@ class WhisperBackend : public QObject {
 public:
     WhisperBackend(const QString &filePath, QObject *parent = nullptr);
     ~WhisperBackend();
+    Q_INVOKABLE void loadModel(WhisperInfo::FloatType = GGML_FTYPE_ALL_F32);
+    Q_INVOKABLE void unloadModel();
     Q_INVOKABLE void threadedInference(std::vector<float> samples);
     const WhisperInfo *info() const;
 signals:
     void resultReady(QString result);
+    void error(QString s);
 private:
     void collectInfo();
+    static int bufferQuantize(QIODevice & in, QIODevice & out, ggml_ftype type);
+
+    QString _og_filepath;
 
     whisper_context *_ctx = nullptr;
     whisper_full_params _params;

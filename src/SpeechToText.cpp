@@ -80,12 +80,20 @@ void SpeechToText::loadModel(const QString &path)
     _whisper = new WhisperBackend(path);
     _whisper->moveToThread(&_whisperThread);
 
+
     connect(_whisper, &WhisperBackend::resultReady, this, [ = ](auto s){
         Q_ASSERT_X(getState() == State::Busy, "Receiving inference result", "Expected state to be State::Busy");
         setState(State::Ready);
         emit resultReady(s);
     });
+    connect(_whisper, &WhisperBackend::error, this, [ = ](auto s){
+        setState(State::Ready);
+        emit SpeechToText::errorOccured(s);
+    });
     connect(_whisper, &QObject::destroyed, this, &SpeechToText::modelUnloaded);
+
+    QMetaObject::invokeMethod(_whisper, "loadModel", Qt::QueuedConnection);
+
 
     if (!_whisperThread.isRunning())
         _whisperThread.start();

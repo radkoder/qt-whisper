@@ -41,6 +41,7 @@ signals:
     void resultReady(const QString& str);
     void modelUnloaded();
     void modelLoaded();
+    void errorOccured(const QString& str);
 
     void backendInfoChanged();
 

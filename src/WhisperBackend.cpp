@@ -1,8 +1,29 @@
 #include "WhisperBackend.h"
+
+#include <numeric>
+#include <functional>
+
 #include <QDebug>
 #include <QFile>
+#include <QRegularExpression>
+#include <QBuffer>
+
 WhisperBackend::WhisperBackend(const QString& filePath, QObject *parent)
     : _numThreads{2}
+{
+    setBusy(true);
+    _og_filepath = filePath;
+    qRegisterMetaType<std::vector<float> >();
+
+    setBusy(false);
+}
+
+WhisperBackend::~WhisperBackend()
+{
+    unloadModel();
+}
+
+void WhisperBackend::loadModel(WhisperInfo::FloatType ftype)
 {
     setBusy(true);
     _params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
@@ -10,25 +31,40 @@ WhisperBackend::WhisperBackend(const QString& filePath, QObject *parent)
           qDebug() << "Inference progress: " << progress;
       };
 
-    QFile file{ filePath };
+    QFile file{ _og_filepath };
     file.open(QIODeviceBase::ReadOnly);
-    auto bytes = file.readAll();
+    QByteArray bytes;
+
+    if (ftype == GGML_FTYPE_ALL_F32) {
+        bytes = file.readAll();
+    } else {
+        QBuffer buffer;
+        buffer.open(QBuffer::WriteOnly);
+        auto err = bufferQuantize(file, buffer, ftype);
+        buffer.close();
+        if (err != 0) {
+            emit error(QString{ "Model quantization failed with code: %1" }.arg(err));
+            return;
+        }
+        bytes = buffer.buffer();
+    }
     file.close();
 
     _ctx = whisper_init_from_buffer(bytes.data(), bytes.size());
 
     if (_ctx == nullptr) {
-        fprintf(stderr, "error: failed to initialize whisper context\n");
+        emit error("Failed to initialize whisper context");
+        return;
     }
-    setBusy(false);
-    qRegisterMetaType<std::vector<float> >();
-
     collectInfo();
-}
 
-WhisperBackend::~WhisperBackend()
+    setBusy(false);
+} // WhisperBackend::loadModel
+
+void WhisperBackend::unloadModel()
 {
     whisper_free(_ctx);
+    _ctx = nullptr;
 }
 
 void WhisperBackend::threadedInference(std::vector<float> samples)
@@ -113,3 +149,206 @@ QString WhisperInfo::modelTypeString() const
             return "Large model";
     }
 }
+
+int WhisperBackend::bufferQuantize(QIODevice& in, QIODevice& out, ggml_ftype ftype)
+{
+    constexpr int INVALID_MAGIC = 1;
+    constexpr int INVALID_QUANTIZATION_TYPE = 2;
+    constexpr int UNSUPPORTED_TENSOR_TYPE   = 3;
+    constexpr int UNSUPPORTED_QUANT_TYPE    = 4;
+
+    // verify magic
+    {
+        uint32_t magic;
+        in.read((char *) &magic, sizeof(magic));
+        if (magic != GGML_FILE_MAGIC) {
+            return INVALID_MAGIC;
+        }
+
+        out.write((char *) &magic, sizeof(magic));
+    }
+
+
+    // load hparams
+    {
+        int32_t hparams[11];
+        in.read((char *) hparams, sizeof(hparams));
+
+        const int32_t ftype_dst = GGML_QNT_VERSION * GGML_QNT_VERSION_FACTOR + ftype;
+
+        out.write((const char *) hparams, sizeof(hparams) - sizeof(int32_t));
+        out.write((const char *) &ftype_dst, sizeof(ftype_dst));
+    }
+
+    // load mel filters
+    {
+        int32_t n_mel, n_fft;
+
+        in.read((char *) &n_mel, sizeof(n_mel));
+        out.write((char *) &n_mel, sizeof(n_mel));
+        in.read((char *) &n_fft, sizeof(n_fft));
+        out.write((char *) &n_fft, sizeof(n_fft));
+
+        std::vector<float> filters_data(static_cast<size_t>(n_mel *n_fft));
+        in.read((char *) filters_data.data(), filters_data.size() * sizeof(float));
+        out.write((char *) filters_data.data(), filters_data.size() * sizeof(float));
+    }
+
+    // load vocab
+    {
+        int32_t n_vocab = 0;
+        in.read((char *) &n_vocab, sizeof(n_vocab));
+        out.write((char *) &n_vocab, sizeof(n_vocab));
+
+        std::vector<char> word;
+        word.reserve(255);
+
+        for (int i = 0; i < n_vocab; i++) {
+            uint32_t len;
+            in.read((char *) &len, sizeof(len));
+            out.write((char *) &len, sizeof(len));
+
+            word.resize(len);
+            in.read((char *) word.data(), len);
+            out.write((char *) word.data(), len);
+        }
+    }
+
+    // regexes of tensor names to not be quantized
+    const QList<QRegularExpression> to_skip = {
+        // "encoder.*",
+        QRegularExpression{ "encoder.conv1.bias"           },
+        QRegularExpression{ "encoder.conv2.bias"           },
+        QRegularExpression{ "encoder.positional_embedding" },
+        QRegularExpression{ "decoder.positional_embedding" },
+    };
+
+    // regexes of tensor names to be quantized
+    const QList<QRegularExpression> to_quant = {
+        QRegularExpression{ ".*" }
+    };
+    // quantization
+    {
+        ggml_type qtype = GGML_TYPE_F32;
+        switch (ftype) {
+            case GGML_FTYPE_MOSTLY_Q4_0: qtype = GGML_TYPE_Q4_0;
+                break;
+            case GGML_FTYPE_MOSTLY_Q4_1: qtype = GGML_TYPE_Q4_1;
+                break;
+            case GGML_FTYPE_MOSTLY_Q5_0: qtype = GGML_TYPE_Q5_0;
+                break;
+            case GGML_FTYPE_MOSTLY_Q5_1: qtype = GGML_TYPE_Q5_1;
+                break;
+            case GGML_FTYPE_MOSTLY_Q8_0: qtype = GGML_TYPE_Q8_0;
+                break;
+            default:
+                return INVALID_QUANTIZATION_TYPE;
+        }
+
+        QByteArray writetrough_buffer;
+        std::vector<float> weight_buffer;
+        while (in.bytesAvailable() > 0) {
+            int32_t n_dims, name_length, ttype;
+
+            in.read(reinterpret_cast<char *>(&n_dims), sizeof(n_dims));
+            in.read(reinterpret_cast<char *>(&name_length), sizeof(name_length));
+            in.read(reinterpret_cast<char *>(&ttype), sizeof(ttype));
+
+            // Reading dimentions of tensor
+            std::array<int32_t, 4> dims = { 1, 1, 1, 1 };
+            for (auto& d : dims) {
+                in.read(reinterpret_cast<char *>(&d), sizeof(d));
+            }
+            auto n_elements = std::reduce(dims.begin(), dims.end(), 1.0, std::multiplies{ });
+
+            // Reading name of tensor
+            QByteArray name{ name_length, 0 };
+            in.read(name.data(), name_length);
+
+            // Decide wheter to quantize a tensor
+            bool quantize = std::any_of(to_quant.begin(), to_quant.end(), [&](auto re){
+                return re.match(QString::fromUtf8(name)).hasMatch();
+            });
+            quantize &= std::none_of(to_skip.begin(), to_skip.end(), [&](auto re){
+                return re.match(QString::fromUtf8(name)).hasMatch();
+            });
+            quantize &= (n_dims == 2);
+
+            if (!quantize) {
+                // Write tensor header
+                out.write(reinterpret_cast<char *>(&n_dims), sizeof(n_dims));
+                out.write(reinterpret_cast<char *>(&name_length), sizeof(name_length));
+                out.write(reinterpret_cast<char *>(&ttype), sizeof(ttype));
+                for (auto d : dims) {
+                    out.write(reinterpret_cast<char *>(&d), sizeof(d));
+                }
+                out.write(name.constData(), name_length);
+
+                // write tensor data
+                const int bpe = (ttype == 0) ? sizeof(float) : sizeof(uint16_t);
+                writetrough_buffer.resize(n_elements * bpe);
+                in.read(reinterpret_cast<char *>(writetrough_buffer.data()), n_elements * bpe);
+                out.write(writetrough_buffer);
+
+                return 0;
+            } else {
+                if (ttype != GGML_TYPE_F32 && ttype != GGML_TYPE_F16) {
+                    return UNSUPPORTED_TENSOR_TYPE;
+                }
+
+                if (ttype == GGML_TYPE_F16) {
+                    std::vector<ggml_fp16_t> buff(n_elements);
+
+                    in.read(reinterpret_cast<char *>(buff.data()), n_elements * sizeof(ggml_fp16_t));
+                    weight_buffer.resize(n_elements);
+                    std::transform(buff.begin(), buff.end(), weight_buffer.begin(), ggml_fp16_to_fp32);
+                } else {
+                    weight_buffer.resize(n_elements);
+                    in.read(reinterpret_cast<char *>(weight_buffer.data()), n_elements * sizeof(float));
+                }
+                ttype = qtype;
+
+                std::vector<float> quants(n_elements);
+                std::vector<int64_t> hist_cur(1 << 4, 0);
+                size_t cur_size = 0;
+                switch (static_cast<ggml_type>(ttype)) {
+                    case GGML_TYPE_Q4_0:
+                        cur_size = ggml_quantize_q4_0(weight_buffer.data(),
+                            quants.data(), n_elements, dims[0], hist_cur.data());
+                        break;
+                    case GGML_TYPE_Q4_1:
+                        cur_size = ggml_quantize_q4_1(weight_buffer.data(),
+                            quants.data(), n_elements, dims[0], hist_cur.data());
+                        break;
+                    case GGML_TYPE_Q5_0:
+                        cur_size = ggml_quantize_q5_0(weight_buffer.data(),
+                            quants.data(), n_elements, dims[0], hist_cur.data());
+                        break;
+                    case GGML_TYPE_Q5_1:
+                        cur_size = ggml_quantize_q5_1(weight_buffer.data(),
+                            quants.data(), n_elements, dims[0], hist_cur.data());
+                        break;
+                    case GGML_TYPE_Q8_0:
+                        cur_size = ggml_quantize_q8_0(weight_buffer.data(),
+                            quants.data(), n_elements, dims[0], hist_cur.data());
+                        break;
+                    default:
+                        return UNSUPPORTED_QUANT_TYPE;
+                }
+
+                // Write tensor header
+                out.write(reinterpret_cast<char *>(&n_dims), sizeof(n_dims));
+                out.write(reinterpret_cast<char *>(&name_length), sizeof(name_length));
+                out.write(reinterpret_cast<char *>(&ttype), sizeof(ttype));
+                for (auto d : dims) {
+                    out.write(reinterpret_cast<char *>(&d), sizeof(d));
+                }
+                out.write(name.constData(), name_length);
+                // write tensor data
+                out.write(reinterpret_cast<char *>(quants.data()), cur_size);
+            }
+        }
+    }
+
+    return 0;
+} // WhisperBackend::bufferQuantize
