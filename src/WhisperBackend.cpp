@@ -150,6 +150,58 @@ QString WhisperInfo::modelTypeString() const
     }
 }
 
+struct tensor_header_t {
+    int32_t n_dims;
+    int32_t name_len;
+    int32_t ttype;
+    std::vector<int32_t> dims;
+    QByteArray name;
+    void read(QIODevice& in){
+        in.read(reinterpret_cast<char *>(&n_dims), sizeof(n_dims));
+        in.read(reinterpret_cast<char *>(&name_len), sizeof(name_len));
+        in.read(reinterpret_cast<char *>(&ttype), sizeof(ttype));
+
+        dims.resize(n_dims,1);
+        for (auto& d : dims) {
+            in.read(reinterpret_cast<char *>(&d), sizeof(d));
+        }
+
+        name.resize(name_len,0);
+        in.read(name.data(), name_len);
+
+    }
+    void write(QIODevice& out)
+    {
+        out.write(reinterpret_cast<char *>(&n_dims), sizeof(n_dims));
+        out.write(reinterpret_cast<char *>(&name_len), sizeof(name_len));
+        out.write(reinterpret_cast<char *>(&ttype), sizeof(ttype));
+        for (auto d : dims) {
+            out.write(reinterpret_cast<char *>(&d), sizeof(d));
+        }
+        out.write(name.constData(), name_len);
+
+    }
+};
+
+typedef size_t (*quantizer_func)(const float * src, void * dst, int n, int k, int64_t * hist);
+
+quantizer_func get_quantizer(ggml_type t){
+    switch(t){
+    case GGML_TYPE_Q4_0:
+        return ggml_quantize_q4_0;
+    case GGML_TYPE_Q4_1:
+        return ggml_quantize_q4_1;
+    case GGML_TYPE_Q5_0:
+        return  ggml_quantize_q5_0;
+    case GGML_TYPE_Q5_1:
+        return  ggml_quantize_q5_1;
+    case GGML_TYPE_Q8_0:
+        return ggml_quantize_q8_0;
+    default:
+        return nullptr;
+    }
+}
+
 int WhisperBackend::bufferQuantize(QIODevice& in, QIODevice& out, ggml_ftype ftype)
 {
     constexpr int INVALID_MAGIC = 1;
@@ -220,7 +272,7 @@ int WhisperBackend::bufferQuantize(QIODevice& in, QIODevice& out, ggml_ftype fty
         QRegularExpression{ "encoder.conv1.bias"           },
         QRegularExpression{ "encoder.conv2.bias"           },
         QRegularExpression{ "encoder.positional_embedding" },
-        QRegularExpression{ "decoder.positional_embedding" },
+        QRegularExpression{ "decoder.positional_embedding" }
     };
 
     // regexes of tensor names to be quantized
@@ -247,56 +299,40 @@ int WhisperBackend::bufferQuantize(QIODevice& in, QIODevice& out, ggml_ftype fty
 
         QByteArray writetrough_buffer;
         std::vector<float> weight_buffer;
-        while (in.bytesAvailable() > 0) {
-            int32_t n_dims, name_length, ttype;
+        tensor_header_t tensor_header;
+        while (in.bytesAvailable() > 0)
+        {
 
-            in.read(reinterpret_cast<char *>(&n_dims), sizeof(n_dims));
-            in.read(reinterpret_cast<char *>(&name_length), sizeof(name_length));
-            in.read(reinterpret_cast<char *>(&ttype), sizeof(ttype));
+            tensor_header.read(in);
 
-            // Reading dimentions of tensor
-            std::array<int32_t, 4> dims = { 1, 1, 1, 1 };
-            for (auto& d : dims) {
-                in.read(reinterpret_cast<char *>(&d), sizeof(d));
-            }
-            auto n_elements = std::reduce(dims.begin(), dims.end(), 1.0, std::multiplies{ });
+            auto n_elements = std::reduce(tensor_header.dims.begin(), tensor_header.dims.end(), 1, std::multiplies{ });
+            Q_ASSERT(n_elements < std::vector<float>{}.max_size());
 
-            // Reading name of tensor
-            QByteArray name{ name_length, 0 };
-            in.read(name.data(), name_length);
 
             // Decide wheter to quantize a tensor
             bool quantize = std::any_of(to_quant.begin(), to_quant.end(), [&](auto re){
-                return re.match(QString::fromUtf8(name)).hasMatch();
+                return re.match(QString::fromUtf8(tensor_header.name)).hasMatch();
             });
             quantize &= std::none_of(to_skip.begin(), to_skip.end(), [&](auto re){
-                return re.match(QString::fromUtf8(name)).hasMatch();
+                return re.match(QString::fromUtf8(tensor_header.name)).hasMatch();
             });
-            quantize &= (n_dims == 2);
+            quantize &= (tensor_header.n_dims == 2);
 
             if (!quantize) {
                 // Write tensor header
-                out.write(reinterpret_cast<char *>(&n_dims), sizeof(n_dims));
-                out.write(reinterpret_cast<char *>(&name_length), sizeof(name_length));
-                out.write(reinterpret_cast<char *>(&ttype), sizeof(ttype));
-                for (auto d : dims) {
-                    out.write(reinterpret_cast<char *>(&d), sizeof(d));
-                }
-                out.write(name.constData(), name_length);
+                tensor_header.write(out);
 
                 // write tensor data
-                const int bpe = (ttype == 0) ? sizeof(float) : sizeof(uint16_t);
+                const int bpe = (tensor_header.ttype == 0) ? sizeof(float) : sizeof(uint16_t);
                 writetrough_buffer.resize(n_elements * bpe);
                 in.read(reinterpret_cast<char *>(writetrough_buffer.data()), n_elements * bpe);
-                out.write(writetrough_buffer);
-
-                return 0;
+                out.write(writetrough_buffer, n_elements * bpe);
             } else {
-                if (ttype != GGML_TYPE_F32 && ttype != GGML_TYPE_F16) {
+                if (tensor_header.ttype != GGML_TYPE_F32 && tensor_header.ttype != GGML_TYPE_F16) {
                     return UNSUPPORTED_TENSOR_TYPE;
                 }
 
-                if (ttype == GGML_TYPE_F16) {
+                if (tensor_header.ttype == GGML_TYPE_F16) {
                     std::vector<ggml_fp16_t> buff(n_elements);
 
                     in.read(reinterpret_cast<char *>(buff.data()), n_elements * sizeof(ggml_fp16_t));
@@ -306,44 +342,21 @@ int WhisperBackend::bufferQuantize(QIODevice& in, QIODevice& out, ggml_ftype fty
                     weight_buffer.resize(n_elements);
                     in.read(reinterpret_cast<char *>(weight_buffer.data()), n_elements * sizeof(float));
                 }
-                ttype = qtype;
+                tensor_header.ttype = qtype;
 
-                std::vector<float> quants(n_elements);
+                std::vector<int32_t> quants(n_elements);
                 std::vector<int64_t> hist_cur(1 << 4, 0);
                 size_t cur_size = 0;
-                switch (static_cast<ggml_type>(ttype)) {
-                    case GGML_TYPE_Q4_0:
-                        cur_size = ggml_quantize_q4_0(weight_buffer.data(),
-                            quants.data(), n_elements, dims[0], hist_cur.data());
-                        break;
-                    case GGML_TYPE_Q4_1:
-                        cur_size = ggml_quantize_q4_1(weight_buffer.data(),
-                            quants.data(), n_elements, dims[0], hist_cur.data());
-                        break;
-                    case GGML_TYPE_Q5_0:
-                        cur_size = ggml_quantize_q5_0(weight_buffer.data(),
-                            quants.data(), n_elements, dims[0], hist_cur.data());
-                        break;
-                    case GGML_TYPE_Q5_1:
-                        cur_size = ggml_quantize_q5_1(weight_buffer.data(),
-                            quants.data(), n_elements, dims[0], hist_cur.data());
-                        break;
-                    case GGML_TYPE_Q8_0:
-                        cur_size = ggml_quantize_q8_0(weight_buffer.data(),
-                            quants.data(), n_elements, dims[0], hist_cur.data());
-                        break;
-                    default:
-                        return UNSUPPORTED_QUANT_TYPE;
+                quantizer_func quantizer = get_quantizer(static_cast<ggml_type>(tensor_header.ttype));
+
+                if(!quantizer){
+                    return UNSUPPORTED_QUANT_TYPE;
                 }
 
-                // Write tensor header
-                out.write(reinterpret_cast<char *>(&n_dims), sizeof(n_dims));
-                out.write(reinterpret_cast<char *>(&name_length), sizeof(name_length));
-                out.write(reinterpret_cast<char *>(&ttype), sizeof(ttype));
-                for (auto d : dims) {
-                    out.write(reinterpret_cast<char *>(&d), sizeof(d));
-                }
-                out.write(name.constData(), name_length);
+                cur_size = quantizer(weight_buffer.data(),
+                    quants.data(), n_elements, tensor_header.dims[0], hist_cur.data());
+
+                tensor_header.write(out);
                 // write tensor data
                 out.write(reinterpret_cast<char *>(quants.data()), cur_size);
             }

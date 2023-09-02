@@ -36,6 +36,7 @@ qt_finalize_target(${QT_WHISPER_TARGET})
 #Add examples if build as a standalone
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     add_subdirectory(examples)
+    add_subdirectory(tests)
 endif()
 
 

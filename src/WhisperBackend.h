@@ -38,12 +38,13 @@ public:
     Q_INVOKABLE void unloadModel();
     Q_INVOKABLE void threadedInference(std::vector<float> samples);
     const WhisperInfo *info() const;
+    static int bufferQuantize(QIODevice & in, QIODevice & out, ggml_ftype type);
 signals:
     void resultReady(QString result);
     void error(QString s);
 private:
     void collectInfo();
-    static int bufferQuantize(QIODevice & in, QIODevice & out, ggml_ftype type);
+
 
     QString _og_filepath;
 
