@@ -15,7 +15,7 @@ find_package(QT NAMES Qt5 Qt6 COMPONENTS Core Multimedia Concurrent Quick REQUIR
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Core Multimedia Concurrent Quick REQUIRED)
 
 file(GLOB SOURCE_CPP
-    "src/*.cpp" "src/*.h"
+    "src/*.cpp" "src/*.h" "src/private/*.h"
 )
 if(QT_WHISPER_EMBED_MODEL)
     set(SOURCE_RCC "models/models.qrc")
@@ -23,9 +23,11 @@ endif()
 
 qt_add_library(${QT_WHISPER_TARGET} STATIC MANUAL_FINALIZATION ${SOURCE_CPP} ${SOURCE_RCC})
 
+
 target_link_libraries(${QT_WHISPER_TARGET} PRIVATE whisper)
 target_link_libraries(${QT_WHISPER_TARGET} PUBLIC Qt6::Core Qt6::Multimedia  Qt6::Concurrent  Qt6::Quick)
-target_include_directories(${QT_WHISPER_TARGET} INTERFACE "src" "whisper.cpp")
+target_include_directories(${QT_WHISPER_TARGET} INTERFACE "src" "src/private" "whisper.cpp")
+target_include_directories(${QT_WHISPER_TARGET} PRIVATE "src/private")
 
 set_property(TARGET ${QT_WHISPER_TARGET} PROPERTY AUTOMOC ON)
 set_property(TARGET ${QT_WHISPER_TARGET} PROPERTY AUTORCC ${QT_WHISPER_EMBED_MODEL})

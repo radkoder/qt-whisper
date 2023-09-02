@@ -1,5 +1,5 @@
 #include <QTest>
-#include "WhisperBackend.h"
+#include "private/quantization.h"
 #include "qbuffer.h"
 #include "ggml.h"
 #include <QDebug>
@@ -22,7 +22,7 @@ class QuantizerTest : public QObject
         QBuffer result;
         result.open(QIODeviceBase::WriteOnly);
 
-        auto error_code = WhisperBackend::bufferQuantize(modelFile, result, type);
+        auto error_code = qtw::buffer_quantize(modelFile, result, type);
         modelFile.close();
         result.close();
 
@@ -47,6 +47,7 @@ private slots:
         QVERIFY(QFileInfo{ q51_model_name }.size() > 0);
         QVERIFY(QFileInfo{ q80_model_name }.size() > 0);
 
+        // initializes float-16 lookup table - critical to quantization
         _ctx = ggml_init({});
         QVERIFY(_ctx);
 
