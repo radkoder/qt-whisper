@@ -9,7 +9,7 @@ This project provides ready to use QML object that performes inference away from
 :heavy_check_mark: Voice Activity Detection - Wait for Speech to start capturing audio and Automatically stop audio capture after speech has stopped.  
 :heavy_check_mark: Embedded small model - You can build the library with a small model embedded into the binary for quick prototyping  
 :x: Advanced VAD - Dynamic threshold, ML models.  
-:x: Model Quantization  
+:construction_worker: Model Quantization  
 :x: Building QML plugin  
 
 ## Usage
