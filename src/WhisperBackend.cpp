@@ -15,6 +15,9 @@ WhisperBackend::WhisperBackend(const QString& filePath, QObject *parent)
 {
     setBusy(true);
     _og_filepath = filePath;
+
+    qRegisterMetaType<WhisperInfo::FloatType >();
+    qRegisterMetaType<WhisperInfo::ModelType >();
     qRegisterMetaType<std::vector<float> >();
 
     setBusy(false);
@@ -61,6 +64,7 @@ void WhisperBackend::loadModel(WhisperInfo::FloatType ftype)
     collectInfo();
 
     setBusy(false);
+    emit modelLoaded();
 } // WhisperBackend::loadModel
 
 void WhisperBackend::unloadModel()
@@ -72,7 +76,7 @@ void WhisperBackend::unloadModel()
 void WhisperBackend::threadedInference(std::vector<float> samples)
 {
     setBusy(true);
-    if (whisper_full_parallel(_ctx, _params, samples.data(), samples.size(), getNumThreads()) != 0) {
+    if (whisper_full_parallel(_ctx, _params, samples.data(), static_cast<int>(samples.size()), getNumThreads()) != 0) {
         fprintf(stderr, "failed to process audio\n");
     }
 

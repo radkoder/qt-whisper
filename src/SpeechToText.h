@@ -28,6 +28,7 @@ public:
         Tuning,
         WaitingForSpeech,
         SpeechDetected,
+        WaitingForModel,
         Busy
     };
     Q_ENUM(State);
@@ -49,9 +50,10 @@ private:
     QML_READONLY_PROPERTY(State, state, State)
     QPointer<WhisperBackend> _whisper = nullptr;
     VoiceActivityDetector _vad;
-    QAudioSource *_source = nullptr;
+    std::unique_ptr<QAudioSource> _source = nullptr;
     std::vector<float> _audioBuffer;
     QIODevice *_audioDevice = nullptr;
+    bool _stopFlag = false;
     QThread _whisperThread;
 };
 

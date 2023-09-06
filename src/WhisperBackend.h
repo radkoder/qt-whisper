@@ -19,11 +19,14 @@ public:
     using FloatType = ggml_ftype;
     Q_ENUM(ModelType)
     Q_ENUM(FloatType)
-    Q_INVOKABLE QString floatTypeString() const;
-    Q_INVOKABLE QString modelTypeString() const;
+    QString floatTypeString() const;
+    QString modelTypeString() const;
 private:
     QML_READONLY_PROPERTY(ModelType, modelType, ModelType)
     QML_READONLY_PROPERTY(FloatType, floatType, FloatType)
+    Q_PROPERTY(QString modelTypeString READ modelTypeString NOTIFY modelTypeChanged)
+    Q_PROPERTY(QString floatTypeString READ floatTypeString NOTIFY floatTypeChanged)
+
 };
 
 class WhisperBackend : public QObject {
@@ -42,6 +45,7 @@ public:
 signals:
     void resultReady(QString result);
     void error(QString s);
+    void modelLoaded();
 private:
     void collectInfo();
 

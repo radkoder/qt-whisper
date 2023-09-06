@@ -22,12 +22,12 @@ ApplicationWindow {
       font.pixelSize: 20
     }
     Label {
-      text: stt.backendInfo.floatTypeString()
+      text: stt.backendInfo.floatTypeString
       Layout.leftMargin: 10
       font.pixelSize: 15
     }
     Label {
-      text: stt.backendInfo.modelTypeString()
+      text: stt.backendInfo.modelTypeString
       Layout.leftMargin: 10
       font.pixelSize: 15
     }

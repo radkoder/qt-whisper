@@ -32,8 +32,8 @@ void SpeechToText::start()
         qDebug() << "Format " << fmt << " not supported";
     }
 
-    if (_source) delete _source;
-    _source      = new QAudioSource{ device, fmt };
+
+    _source.reset(new QAudioSource{ device, fmt });
     _audioDevice = _source->start();
     setState(State::WaitingForSpeech);
     connect(_audioDevice, &QIODevice::readyRead, this, [ = ](){
@@ -62,7 +62,19 @@ void SpeechToText::start()
 } // SpeechToText::start
 
 void SpeechToText::stop()
-{ }
+{
+    // immidieatly stop the audio recording
+    _source->stop();
+    _source.reset();
+
+    // if waiting for speech - simply disconnect the slots
+    disconnect(&_vad,nullptr,this,nullptr);
+    _vad.reset();
+    if(_whisper->getBusy())
+        setState(State::Busy);
+    else
+        setState(State::Ready);
+}
 
 SpeechToText::~SpeechToText()
 {
@@ -73,10 +85,15 @@ SpeechToText::~SpeechToText()
 
 void SpeechToText::loadModel(const QString &path)
 {
-    if (!_whisper.isNull()) {
+    if (_whisper) {
+        // Unload model before loading
+        connect(this,&SpeechToText::modelUnloaded,this,[=](){
+            loadModel(path);
+            },static_cast<Qt::ConnectionType>(Qt::AutoConnection | Qt::SingleShotConnection));
         unloadModel();
+        setState(State::NoModel);
+        return;
     }
-
     _whisper = new WhisperBackend(path);
     _whisper->moveToThread(&_whisperThread);
 
@@ -90,7 +107,8 @@ void SpeechToText::loadModel(const QString &path)
         setState(State::Ready);
         emit SpeechToText::errorOccured(s);
     });
-    connect(_whisper, &QObject::destroyed, this, &SpeechToText::modelUnloaded);
+    connect(_whisper, &WhisperBackend::modelLoaded, this, &SpeechToText::backendInfoChanged);
+
 
     QMetaObject::invokeMethod(_whisper, "loadModel", Qt::QueuedConnection);
 
@@ -102,9 +120,13 @@ void SpeechToText::loadModel(const QString &path)
 
 void SpeechToText::unloadModel()
 {
-    Q_ASSERT_X(getState() != State::Ready, "Deleting model", "Cannot delete model while performing inference");
-    if (!_whisper.isNull())
+    stop();
+    if (_whisper)
+    {
+        disconnect(_whisper,nullptr,this,nullptr);
+        connect(_whisper, &QObject::destroyed, this, &SpeechToText::modelUnloaded);
         _whisper->deleteLater();
+    }
 }
 
 const WhisperInfo *SpeechToText::getBackendInfo() const

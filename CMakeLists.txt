@@ -21,12 +21,13 @@ if(QT_WHISPER_EMBED_MODEL)
     set(SOURCE_RCC "models/models.qrc")
 endif()
 
-qt_add_library(${QT_WHISPER_TARGET} STATIC MANUAL_FINALIZATION ${SOURCE_CPP} ${SOURCE_RCC})
+qt_add_library(${QT_WHISPER_TARGET} STATIC MANUAL_FINALIZATION ${SOURCE_CPP} ${SOURCE_RCC}
+    src/private/StateMachine.h src/private/StateMachine.cpp)
 
 
 target_link_libraries(${QT_WHISPER_TARGET} PRIVATE whisper)
 target_link_libraries(${QT_WHISPER_TARGET} PUBLIC Qt6::Core Qt6::Multimedia  Qt6::Concurrent  Qt6::Quick)
-target_include_directories(${QT_WHISPER_TARGET} INTERFACE "src" "src/private" "whisper.cpp")
+target_include_directories(${QT_WHISPER_TARGET} INTERFACE "src" "whisper.cpp")
 target_include_directories(${QT_WHISPER_TARGET} PRIVATE "src/private")
 
 set_property(TARGET ${QT_WHISPER_TARGET} PROPERTY AUTOMOC ON)
