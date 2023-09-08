@@ -43,6 +43,7 @@ public:
 
     const WhisperInfo *getBackendInfo() const;
     State getState() const;
+    Q_INVOKABLE void quantize(int mode);
 
 
 

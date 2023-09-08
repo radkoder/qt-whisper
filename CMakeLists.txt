@@ -36,8 +36,13 @@ if(${QT_WHISPER_EMBED_MODEL})
     target_compile_definitions(${QT_WHISPER_TARGET} PRIVATE EMBED_MODEL)
 endif()
 qt_finalize_target(${QT_WHISPER_TARGET})
+
+
 #Add examples if build as a standalone
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    macro(download_whisper_tiny)
+        file(DOWNLOAD "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin" ${CMAKE_CURRENT_BINARY_DIR}/ggml-tiny.bin SHOW_PROGRESS EXPECTED_HASH SHA256=be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21)
+    endmacro()
     add_subdirectory(examples)
     add_subdirectory(tests)
 endif()

@@ -82,8 +82,11 @@ void SpeechToText::start()
 void SpeechToText::stop()
 {
     // immidieatly stop the audio recording
-    _source->stop();
-    _source.reset();
+    if(_source){
+        _source->stop();
+        _source.reset();
+    }
+
 
     // if waiting for speech - simply disconnect the slots
     disconnect(&_vad,nullptr,this,nullptr);
@@ -102,10 +105,11 @@ void SpeechToText::loadModel(const QString &path)
     if (_whisper || getState() == State::Busy) {
         // Unload model before loading
         connect(this,&SpeechToText::modelUnloaded,this,[=](){
-            loadModel(path);
+                ASSERT_STATE(State::NoModel);
+                loadModel(path);
             },static_cast<Qt::ConnectionType>(Qt::AutoConnection | Qt::SingleShotConnection));
         unloadModel();
-        ASSERT_STATE(State::NoModel);
+
         return;
     }
     _whisper = new WhisperBackend(path);
@@ -166,6 +170,13 @@ SpeechToText::State SpeechToText::getState() const
     // default state
     O(State::Ready,true); // Nothing is happening - the object is idle
 #undef O
+}
+
+void SpeechToText::quantize(int mode)
+{
+    Q_ASSERT(_whisper);
+    QMetaObject::invokeMethod(_whisper, "unloadModel", Qt::QueuedConnection);
+    QMetaObject::invokeMethod(_whisper, "loadModel", Qt::QueuedConnection, static_cast<WhisperInfo::FloatType>(mode));
 }
 
 void SpeechToText::updateState()

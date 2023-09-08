@@ -22,10 +22,12 @@ public:
 
     QString floatTypeString() const;
     QString modelTypeString() const;
+    bool requantizable() const;
 
 private:
     QML_READONLY_PROPERTY(ModelType, modelType, ModelType)
     QML_READONLY_PROPERTY(FloatType, floatType, FloatType)
+    Q_PROPERTY(bool requantizable READ requantizable NOTIFY floatTypeChanged)
     Q_PROPERTY(QString modelTypeString READ modelTypeString NOTIFY modelTypeChanged)
     Q_PROPERTY(QString floatTypeString READ floatTypeString NOTIFY floatTypeChanged)
 

@@ -26,6 +26,7 @@ WhisperBackend::~WhisperBackend()
 void WhisperBackend::loadModel(WhisperInfo::FloatType ftype)
 {
     setBusy(true);
+    qDebug() << "load model called with quantization type: " << ftype;
     _params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
     _params.progress_callback = [] (whisper_context *ctx, whisper_state *state, int progress, void *user_data){
           qDebug() << "Inference progress: " << progress;
@@ -142,7 +143,12 @@ QString WhisperInfo::modelTypeString() const
             return "Medium model";
         case MODEL_LARGE:
             return "Large model";
-    }
+        }
+}
+
+bool WhisperInfo::requantizable() const
+{
+        return (_floatType == GGML_FTYPE_ALL_F32) || (_floatType == GGML_FTYPE_MOSTLY_F16);
 }
 
 

@@ -8,7 +8,54 @@ ApplicationWindow {
   visible: true
   width: 800
   height: 600
+
   Material.theme: Material.Dark
+
+  RowLayout {
+    id: headerRow
+    anchors {
+      top: parent.top
+    }
+    width: parent.width
+    height: 200
+    ColumnLayout {
+      Repeater {
+        id: rep
+        property var names: ["Normal", "Q4_0", "Q4_1", "Q5_0", "Q5_1", "Q8_0"]
+        model: [0, 2, 3, 8, 9, 7]
+
+        RadioDelegate {
+          text: rep.names[index]
+          enabled: stt.backendInfo.requantizable
+                   && (stt.state == SpeechToText.Ready)
+          checked: stt.backendInfo.floatType === rep.model[index]
+          onClicked: stt.quantize(rep.model[index])
+        }
+      }
+    }
+    Item {
+      Layout.fillWidth: true
+    }
+
+    ColumnLayout {
+      Label {
+        text: "Collected Info:"
+        font.pixelSize: 20
+      }
+      Label {
+        text: stt.backendInfo.floatTypeString
+        Layout.leftMargin: 10
+        Layout.maximumWidth: 200
+        font.pixelSize: 15
+        wrapMode: Text.Wrap
+      }
+      Label {
+        text: stt.backendInfo.modelTypeString
+        Layout.leftMargin: 10
+        font.pixelSize: 15
+      }
+    }
+  }
 
   ColumnLayout {
     anchors.centerIn: parent
@@ -88,6 +135,7 @@ ApplicationWindow {
 
   SpeechToText {
     id: stt
+    modelPath: "ggml-tiny.bin"
     onResultReady: function (r) {
       result.text = r
     }
