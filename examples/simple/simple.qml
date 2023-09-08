@@ -88,16 +88,22 @@ ApplicationWindow {
       font.pixelSize: 20
       text: {
         switch (stt.state) {
-        case SpeechToText.Tuning:
-          return "Tuning out background noise"
-        case SpeechToText.WaitingForSpeech:
-          return "Speak to start detection"
+        case SpeechToText.NoModel:
+          return "No model loaded"
+        case SpeechToText.WaitingForModel:
+          return "Loading model, please wait."
         case SpeechToText.Busy:
           return "Inference in progress"
+        case SpeechToText.Tuning:
+          return "Tuning out background noise"
         case SpeechToText.SpeechDetected:
           return "Speech detected"
-        default:
+        case SpeechToText.WaitingForSpeech:
+          return "Speak to start detection"
+        case SpeechToText.Ready:
           return "Press start to start listening"
+        default:
+          return "Unknown state: " + stt.state
         }
       }
     }

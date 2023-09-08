@@ -15,11 +15,6 @@ WhisperBackend::WhisperBackend(const QString& filePath, QObject *parent)
 {
     setBusy(true);
     _og_filepath = filePath;
-
-    qRegisterMetaType<WhisperInfo::FloatType >();
-    qRegisterMetaType<WhisperInfo::ModelType >();
-    qRegisterMetaType<std::vector<float> >();
-
     setBusy(false);
 }
 

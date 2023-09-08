@@ -52,7 +52,7 @@ void VoiceActivityDetector::feedSamples(const std::vector<float> &data)
         }
         reset();
     }
-    qDebug() << "Energy: " << energy << " Speech:" << getVoiceInProgress() << " Patience:" << _patience_counter
+    qDebug() << "Energy: " << energy << "Threshold: " <<threshold()<<" Speech:" << getVoiceInProgress() << " Patience:" << _patience_counter
              << " Valid counter:" << _detected_samples_counter;
 }// VoiceActivityDetector::feedSamples
 
@@ -82,6 +82,6 @@ float VoiceActivityDetector::threshold() const
 VoiceActivityDetector::Params VoiceActivityDetector::defaultParams()
 {
     return Params{
-        50, 10, 0.5f, 3.0f, 20
+        50, 10, 0.5f, 4.0f, 200
     };
 }

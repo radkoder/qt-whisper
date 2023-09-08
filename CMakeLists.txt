@@ -22,7 +22,7 @@ if(QT_WHISPER_EMBED_MODEL)
 endif()
 
 qt_add_library(${QT_WHISPER_TARGET} STATIC MANUAL_FINALIZATION ${SOURCE_CPP} ${SOURCE_RCC}
-    src/private/StateMachine.h src/private/StateMachine.cpp)
+)
 
 
 target_link_libraries(${QT_WHISPER_TARGET} PRIVATE whisper)

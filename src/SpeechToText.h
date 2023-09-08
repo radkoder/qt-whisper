@@ -4,24 +4,18 @@
 #include <QQmlEngine>
 #include <QAudioSource>
 #include <QThread>
+#include <QObjectBindableProperty>
+#include <QTimer>
 
 #include "WhisperBackend.h"
 #include "VoiceActivityDetector.h"
 #include "QmlMacros.h"
 
-
 class SpeechToText : public QObject
 {
     Q_OBJECT
     QML_ELEMENT;
-    QML_WRITABLE_PROPERTY(QString, modelPath, ModelPath)
-    QML_READONLY_PROPERTY(bool, hasEmbeddedModel, HasEmbeddedModel)
-    Q_PROPERTY(const WhisperInfo * backendInfo READ getBackendInfo NOTIFY backendInfoChanged)
 public:
-    SpeechToText();
-    Q_INVOKABLE void start();
-    Q_INVOKABLE void stop();
-
     enum State {
         NoModel,
         Ready,
@@ -32,22 +26,39 @@ public:
         Busy
     };
     Q_ENUM(State);
+private:
+    QML_WRITABLE_PROPERTY(QString, modelPath, ModelPath)
+    QML_READONLY_PROPERTY(bool, hasEmbeddedModel, HasEmbeddedModel)
+    Q_PROPERTY(const WhisperInfo * backendInfo READ getBackendInfo NOTIFY backendInfoChanged)
+    Q_PROPERTY(State state READ getState NOTIFY stateChanged)
+public:
+    SpeechToText();
+    Q_INVOKABLE void start();
+    Q_INVOKABLE void stop();
+
+
     ~SpeechToText();
     void loadModel(const QString& path);
     void unloadModel();
 
     const WhisperInfo *getBackendInfo() const;
+    State getState() const;
+
+
+
+public slots:
+    void updateState();
 
 signals:
     void resultReady(const QString& str);
     void modelUnloaded();
     void modelLoaded();
     void errorOccured(const QString& str);
+    void stateChanged(State s);
 
     void backendInfoChanged();
 
 private:
-    QML_READONLY_PROPERTY(State, state, State)
     QPointer<WhisperBackend> _whisper = nullptr;
     VoiceActivityDetector _vad;
     std::unique_ptr<QAudioSource> _source = nullptr;
@@ -55,6 +66,8 @@ private:
     QIODevice *_audioDevice = nullptr;
     bool _stopFlag = false;
     QThread _whisperThread;
+    QTimer _stateUpdateTimer;
 };
+
 
 #endif // SPEECHTOTEXT_H

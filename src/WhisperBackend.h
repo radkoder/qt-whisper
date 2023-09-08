@@ -19,8 +19,10 @@ public:
     using FloatType = ggml_ftype;
     Q_ENUM(ModelType)
     Q_ENUM(FloatType)
+
     QString floatTypeString() const;
     QString modelTypeString() const;
+
 private:
     QML_READONLY_PROPERTY(ModelType, modelType, ModelType)
     QML_READONLY_PROPERTY(FloatType, floatType, FloatType)
