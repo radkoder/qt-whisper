@@ -6,13 +6,14 @@ set(CMAKE_CXX_STANDARD 20)
 
 set(QT_WHISPER_TARGET qt-whisper)
 set(QT_WHISPER_LIB ${QT_WHISPER_TARGET})
-option(QT_WHISPER_EMBED_MODEL "Embed the compressed model weights into the library" ON)
+option(QT_WHISPER_EMBED_MODEL "Embed the compressed model weights into the library" OFF)
 
 add_subdirectory(whisper.cpp)
 
 
 find_package(QT NAMES Qt5 Qt6 COMPONENTS Core Multimedia Concurrent Quick REQUIRED)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Core Multimedia Concurrent Quick REQUIRED)
+
 
 file(GLOB SOURCE_CPP
     "src/*.cpp" "src/*.h" "src/private/*.h"
