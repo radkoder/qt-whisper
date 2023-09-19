@@ -76,12 +76,20 @@ void VoiceActivityDetector::adjust(const std::vector<float> &data)
 
 float VoiceActivityDetector::threshold() const
 {
-    return _mean_energy + _params.threshold * _std_energy;
+
+    // Expecting exponential distribution
+    // Tukey anomaly criterion
+    auto lambda = 1/_mean_energy;
+    return 2*std::log(10)/lambda;
 }
 
 VoiceActivityDetector::Params VoiceActivityDetector::defaultParams()
 {
     return Params{
-        50, 10, 0.5f, 4.0f, 200
+        50, //patience
+        50, // minimum samples
+        0.5f, // tuning coefficient
+        4.0f, // treshold coefficient
+        200
     };
 }
