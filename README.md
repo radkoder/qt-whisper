@@ -8,8 +8,8 @@ This project provides ready to use QML object that performes inference away from
 :heavy_check_mark: Threaded inference - Don't block GUI thread while running the model  
 :heavy_check_mark: Voice Activity Detection - Wait for Speech to start capturing audio and Automatically stop audio capture after speech has stopped.  
 :heavy_check_mark: Embedded small model - You can build the library with a small model embedded into the binary for quick prototyping  
-:x: Advanced VAD - Dynamic threshold, ML models.  
-:construction_worker: Model Quantization  
+:warning: VAD ML models - No ready avaliable ML models to easly embed into application. Simple Energy-based detection implemented.  
+:heavy_check_mark: Model Quantization - Model Quantization and reloading during runtime. 
 :x: Building QML plugin  
 
 ## Usage
